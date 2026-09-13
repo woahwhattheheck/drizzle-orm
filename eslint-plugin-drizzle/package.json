@@ -3,6 +3,7 @@
 	"version": "0.2.3",
 	"description": "Eslint plugin for drizzle users to avoid common pitfalls",
 	"main": "src/index.js",
+	"types": "src/index.d.ts",
 	"scripts": {
 		"test": "vitest run",
 		"build": "tsc -b && pnpm cpy readme.md dist/",
