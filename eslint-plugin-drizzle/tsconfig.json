@@ -10,6 +10,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"declaration": true,
 		"lib": [
 			"esnext"
 		],
