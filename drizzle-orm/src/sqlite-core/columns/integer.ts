@@ -9,7 +9,7 @@ import type {
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { sql } from '~/sql/sql.ts';
+import { sql, type SQL } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
 import { type Equal, getColumnNameAndConfig, type Or } from '~/utils.ts';
 import type { AnySQLiteTable } from '../table.ts';
@@ -112,6 +112,16 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 	constructor(name: T['name'], mode: 'timestamp' | 'timestamp_ms') {
 		super(name, 'date', 'SQLiteTimestamp');
 		this.config.mode = mode;
+	}
+
+	/**
+	 * Adds a SQL expression as the SQLite column default.
+	 *
+	 * JavaScript `Date` values are runtime values and cannot be emitted as
+	 * SQLite DDL defaults. Use `$defaultFn()` for runtime-generated dates.
+	 */
+	override default(value: SQL): HasDefault<this> {
+		return super.default(value);
 	}
 
 	/**
