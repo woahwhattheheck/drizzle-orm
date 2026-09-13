@@ -9,7 +9,6 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from 'mysql2/promise';
-import { once } from 'node:events';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
@@ -156,38 +155,29 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 
 		const stream = driverQuery.stream();
 
-		function dataListener() {
-			stream.pause();
-		}
-
-		stream.on('data', dataListener);
-
 		try {
-			const onEnd = once(stream, 'end');
-			const onError = once(stream, 'error');
-
-			while (true) {
-				stream.resume();
-				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
-				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-					break;
-				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
-					throw row;
-				} else {
-					if (hasRowsMapper) {
-						if (customResultMapper) {
-							const mappedRow = customResultMapper([row as unknown[]]);
-							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
-						} else {
-							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
-						}
+			for await (const row of stream.iterator({ destroyOnReturn: false })) {
+				if (hasRowsMapper) {
+					if (customResultMapper) {
+						const mappedRow = customResultMapper([row as unknown[]]);
+						yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 					} else {
-						yield row as T['execute'];
+						yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 					}
+				} else {
+					yield row as T['execute'];
 				}
 			}
 		} finally {
-			stream.off('data', dataListener);
+			if (!stream.readableEnded && !stream.destroyed) {
+				stream.resume();
+				await new Promise<void>((resolve) => {
+					stream.on('end', resolve);
+					stream.on('error', resolve);
+					stream.on('close', resolve);
+				});
+			}
+
 			if (isPool(client)) {
 				conn.end();
 			}
