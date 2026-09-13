@@ -237,6 +237,10 @@ export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => fal
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
 function bigintColumnToSchema(column: Column): Type {
+	if (isColumnType(column, ['PgNumericBigInt'])) {
+		return type.bigint;
+	}
+
 	const unsigned = column.getSQLType().includes('unsigned');
 	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
 }
