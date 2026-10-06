@@ -1,0 +1,59 @@
+name: select-from-db check
+
+on:
+  push:
+    branches:
+      - ci/select-from-db-check
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin evidence
+        run: |
+          echo "commit=$(git rev-parse HEAD)"
+          echo "tree=$(git rev-parse 'HEAD^{tree}')"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Allow native dependency builds (pnpm>=10 gate)
+        run: |
+          node -e "const fs=require('fs');const f='pnpm-workspace.yaml';let s=fs.readFileSync(f,'utf8');s=s.replace(/onlyBuiltDependencies:\n(  - .*\n)*/,'onlyBuiltDependencies:\n  - better-sqlite3\n  - dprint\n  - esbuild\n  - prisma\n  - \'@prisma/client\'\n  - \'@prisma/engines\'\n');fs.writeFileSync(f,s)"
+          cat pnpm-workspace.yaml | tail -12
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build drizzle-orm
+        working-directory: drizzle-orm
+        run: pnpm build
+
+      - name: Typecheck
+        working-directory: drizzle-orm
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Focused tests
+        working-directory: drizzle-orm
+        run: pnpm vitest run tests/select-from-db.test.ts
+
+      - name: Evidence
+        run: |
+          echo "commit=$(git rev-parse HEAD)"
+          echo "tree=$(git rev-parse 'HEAD^{tree}')"
+          git status --porcelain | head -20
